@@ -1,23 +1,16 @@
 // src/components/About.tsx
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import Header from './common/Header';
+import Footer from './common/Footer';
 
 const About: React.FC = () => {
-  const { currentUser, logout } = useAuth();
+  const { currentUser } = useAuth();
   const navigate = useNavigate();
 
   const handleLogin = () => {
     navigate('/login');
-  };
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-      navigate('/login');
-    } catch (error) {
-      console.error('Failed to log out', error);
-    }
   };
 
   const handleDashboard = () => {
@@ -26,48 +19,7 @@ const About: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* Header */}
-      <header className="bg-gradient-to-r from-blue-800 to-blue-600 shadow-md">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center">
-              <h1 className="text-white text-2xl font-bold">Trust The Pick</h1>
-              <span className="text-blue-200 ml-2 text-sm">Fantasy Draft Lottery</span>
-            </div>
-            <nav className="flex space-x-4">
-              <Link to="/" className="text-white hover:text-blue-200 transition">
-                Home
-              </Link>
-              <Link to="/about" className="text-white hover:text-blue-200 transition">
-                How It Works
-              </Link>
-              {currentUser ? (
-                <>
-                  <button 
-                    onClick={handleDashboard}
-                    className="text-white hover:text-blue-200 transition"
-                  >
-                    Dashboard
-                  </button>
-                  <button 
-                    onClick={handleLogout}
-                    className="text-white hover:text-blue-200 transition"
-                  >
-                    Logout
-                  </button>
-                </>
-              ) : (
-                <button 
-                  onClick={handleLogin}
-                  className="bg-white text-blue-700 px-4 py-1 rounded-md hover:bg-blue-100 transition"
-                >
-                  Login
-                </button>
-              )}
-            </nav>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       {/* Main Content */}
       <main className="flex-grow">
@@ -327,31 +279,7 @@ const About: React.FC = () => {
         </section>
       </main>
 
-      {/* Footer */}
-      <footer className="bg-gray-800 text-white py-8">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="mb-4 md:mb-0">
-              <h3 className="text-xl font-bold">Trust The Pick</h3>
-              <p className="text-gray-400">The trusted solution for fantasy draft lotteries</p>
-            </div>
-            <div className="flex space-x-6">
-              <Link to="/about" className="text-gray-300 hover:text-white transition">
-                How It Works
-              </Link>
-              <a href="#" className="text-gray-300 hover:text-white transition">
-                Terms of Service
-              </a>
-              <a href="#" className="text-gray-300 hover:text-white transition">
-                Privacy Policy
-              </a>
-            </div>
-          </div>
-          <div className="mt-8 pt-4 border-t border-gray-700 text-center text-gray-400">
-            <p>&copy; {new Date().getFullYear()} Trust The Pick. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 };
