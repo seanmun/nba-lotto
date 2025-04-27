@@ -5,6 +5,8 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { Login, Register } from './components/auth';
 import EmailHandler from './components/auth/EmailHandler';
 import Dashboard from './components/dashboard/Dashboard';
+import Home from './components/Home';
+import About from './components/About';
 import CreateLottery from './components/lottery/CreateLottery';
 import LotterySetup from './components/lottery/LotterySetup';
 import LotteryVerification from './components/lottery/LotteryVerification';
@@ -34,6 +36,8 @@ const App: React.FC = () => {
         <div className="min-h-screen bg-gray-100">
           <Routes>
             {/* Public routes */}
+            <Route path="/" element={<Home />} />
+            <Route path="/about" element={<About />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/email-handler" element={<EmailHandler />} />
@@ -69,9 +73,8 @@ const App: React.FC = () => {
               <LotteryReveal />
             } />
             
-            {/* Redirect to dashboard if logged in, otherwise login */}
-            <Route path="/" element={<Navigate to="/dashboard" />} />
-            <Route path="*" element={<Navigate to="/dashboard" />} />
+            {/* Redirect to home for any unmatched routes */}
+            <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </div>
       </Router>
