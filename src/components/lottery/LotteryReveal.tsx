@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getLotterySession, updateLotteryStatus } from '../../services/lotteryService';
 import { LotterySession, LotteryCombination } from '../../types';
 import { Download } from 'lucide-react';
+import Layout from '../common/Layout';
 
 const LotteryReveal: React.FC = () => {
   const [lottery, setLottery] = useState<LotterySession | null>(null);
@@ -13,7 +14,7 @@ const LotteryReveal: React.FC = () => {
   
   // Reveal state
   const [revealing, setRevealing] = useState(false);
-  const [currentReveal, setCurrentReveal] = useState<number | null>(null);
+  const [revealedPicks, setRevealedPicks] = useState<number[]>([]);
   
   const { lotteryId } = useParams<{ lotteryId: string }>();
   const { currentUser } = useAuth();
@@ -58,19 +59,23 @@ const LotteryReveal: React.FC = () => {
     if (revealing || !lottery || !lottery.draftOrder) return;
     
     setRevealing(true);
+    setRevealedPicks([]);
     
     // Start from the last pick
-    revealNextPick(lottery.draftOrder.length);
+    const totalPicks = lottery.draftOrder.length;
+    revealNextPick(totalPicks);
   };
   
   // Reveal the next pick in the sequence
-  const revealNextPick = (pick: number) => {
-    setCurrentReveal(pick);
+  const revealNextPick = (pickNumber: number) => {
+    // Add this pick to revealed picks
+    setRevealedPicks(prev => [...prev, pickNumber]);
     
-    if (pick > 1) {
+    if (pickNumber > 1) {
+      // Schedule next reveal after 3 seconds
       setTimeout(() => {
-        revealNextPick(pick - 1);
-      }, 3000); // 3 seconds between reveals
+        revealNextPick(pickNumber - 1);
+      }, 3000);
     } else {
       // All picks revealed
       setTimeout(() => {
@@ -136,120 +141,138 @@ const LotteryReveal: React.FC = () => {
   };
   
   if (loading) {
-    return <div className="flex justify-center items-center h-64">Loading...</div>;
+    return (
+      <Layout>
+        <div className="flex justify-center items-center h-64">Loading...</div>
+      </Layout>
+    );
   }
   
   if (error) {
     return (
-      <div className="max-w-lg mx-auto my-10 p-6 bg-white rounded-lg shadow-md">
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          {error}
+      <Layout>
+        <div className="max-w-lg mx-auto my-10 p-6 bg-white rounded-lg shadow-md">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            {error}
+          </div>
+          <button
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+            onClick={() => navigate('/dashboard')}
+          >
+            Back to Dashboard
+          </button>
         </div>
-        <button
-          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-          onClick={() => navigate('/dashboard')}
-        >
-          Back to Dashboard
-        </button>
-      </div>
+      </Layout>
     );
   }
   
   if (!lottery || !lottery.draftOrder) {
-    return <div>No lottery data available</div>;
+    return (
+      <Layout>
+        <div>No lottery data available</div>
+      </Layout>
+    );
   }
   
   return (
-    <div className="max-w-4xl mx-auto my-10 p-6 bg-white rounded-lg shadow-md">
-      <h2 className="text-2xl font-bold mb-2 text-center">{lottery.name}</h2>
-      <p className="text-center text-gray-600 mb-6">Draft Order Reveal</p>
-      
-      {!revealing && (
-        <div className="mb-6 text-center">
-          <p className="mb-4">
-            Ready to reveal the final draft order! The reveal will start from pick #{lottery.draftOrder.length} and work up to the #1 pick.
-          </p>
-          <div className="flex flex-wrap gap-4 justify-center">
-            <button
-              className="bg-blue-600 text-white py-2 px-6 rounded-lg font-medium hover:bg-blue-700 transition"
-              onClick={startReveal}
-            >
-              Start the Reveal
-            </button>
+    <Layout>
+      <div className="max-w-4xl mx-auto my-4 p-4 bg-white rounded-lg shadow-md">
+        <h2 className="text-xl font-bold mb-1 text-center">{lottery.name}</h2>
+        <p className="text-center text-gray-600 text-sm mb-3">Draft Order Reveal</p>
+        
+        {!revealing && revealedPicks.length === 0 && (
+          <div className="mb-4 text-center">
+            <p className="mb-2 text-sm">
+              Ready to reveal the final draft order! The reveal will start from pick #{lottery.draftOrder.length} and work up to the #1 pick.
+            </p>
+            <div className="flex flex-wrap gap-2 justify-center">
+              <button
+                className="bg-blue-600 text-white py-1 px-4 rounded-lg text-sm font-medium hover:bg-blue-700 transition"
+                onClick={startReveal}
+              >
+                Start the Reveal
+              </button>
+              
+              <button
+                className="bg-green-600 text-white py-1 px-3 rounded flex items-center text-sm hover:bg-green-700 transition"
+                onClick={downloadCSV}
+              >
+                <Download size={14} className="mr-1" />
+                Download CSV
+              </button>
+            </div>
+          </div>
+        )}
+        
+        <div className="space-y-1">
+          {lottery.draftOrder.map((pick) => {
+            const isRevealed = revealedPicks.includes(pick.pick);
+            const isCurrentReveal = revealedPicks.length > 0 && 
+                                   revealedPicks[revealedPicks.length - 1] === pick.pick;
+            const isLotteryPick = pick.pick <= 4;
             
+            return (
+              <div 
+                key={pick.pick} 
+                className={`flex items-center p-2 rounded transition-all duration-500 ${
+                  isRevealed ? 'bg-blue-50' : 'bg-gray-100'
+                } ${isCurrentReveal ? 'ring-1 ring-blue-500 scale-102' : ''}`}
+              >
+                <div className={`w-6 h-6 flex items-center justify-center rounded-full mr-2 text-xs font-bold ${
+                  isLotteryPick ? 'bg-blue-600 text-white' : 'bg-gray-700 text-white'
+                }`}>
+                  {pick.pick}
+                </div>
+                
+                <div className="flex-grow">
+                  {isRevealed ? (
+                    <div className={`font-medium text-sm ${isCurrentReveal ? 'animate-pulse' : ''}`}>
+                      {pick.teamName}
+                    </div>
+                  ) : (
+                    <div className="h-4 bg-gray-300 rounded w-28"></div>
+                  )}
+                </div>
+                
+                {isLotteryPick && pick.combination && (
+                  <div className="text-xs text-gray-600">
+                    {formatCombination(pick.combination)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        
+        {(!revealing && revealedPicks.length > 0) && (
+          <div className="mt-4 flex flex-col gap-2">
             <button
-              className="bg-green-600 text-white py-2 px-4 rounded flex items-center hover:bg-green-700 transition"
+              className="w-full bg-blue-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-blue-700 transition"
               onClick={downloadCSV}
             >
-              <Download size={18} className="mr-2" />
+              <Download size={14} className="inline-block mr-1" />
               Download Results CSV
             </button>
-          </div>
-        </div>
-      )}
-      
-      <div className="space-y-3">
-        {lottery.draftOrder.map((pick) => {
-          const revealed = revealing ? currentReveal && currentReveal >= pick.pick : false;
-          const isCurrentReveal = currentReveal === pick.pick;
-          
-          return (
-            <div 
-              key={pick.pick} 
-              className={`flex items-center p-3 rounded transition-all duration-500 ${
-                revealed ? 'bg-blue-50' : 'bg-gray-100'
-              } ${isCurrentReveal ? 'ring-2 ring-blue-500 scale-105' : ''}`}
-            >
-              <div className={`w-10 h-10 flex items-center justify-center rounded-full mr-4 font-bold ${
-                pick.pick <= 4 ? 'bg-blue-600 text-white' : 'bg-gray-700 text-white'
-              }`}>
-                {pick.pick}
-              </div>
-              
-              <div className="flex-grow">
-                <div className={`font-medium text-lg transition-all duration-300 ${revealed ? (isCurrentReveal ? 'animate-pulse' : '') : 'filter blur-sm'}`}>
-                  {pick.teamName}
-                </div>
-              </div>
-              
-              {pick.pick <= 4 && pick.combination && (
-                <div className={`text-sm text-gray-600 transition-all duration-300 ${revealed ? '' : 'filter blur-sm'}`}>
-                  Combo: {formatCombination(pick.combination)}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      
-      {!revealing && (
-        <div className="mt-8 flex flex-col gap-4">
-          <button
-            className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition"
-            onClick={downloadCSV}
-          >
-            <Download size={18} className="inline-block mr-2" />
-            Download Results CSV
-          </button>
-          
-          <div className="flex gap-4">
-            <button
-              className="flex-1 bg-gray-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-gray-700 transition"
-              onClick={goToDashboard}
-            >
-              Back to Dashboard
-            </button>
             
-            <button
-              className="flex-1 bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700 transition"
-              onClick={createNewLottery}
-            >
-              Create a New Lottery
-            </button>
+            <div className="flex gap-2">
+              <button
+                className="flex-1 bg-gray-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-gray-700 transition"
+                onClick={goToDashboard}
+              >
+                Back to Dashboard
+              </button>
+              
+              <button
+                className="flex-1 bg-green-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-green-700 transition"
+                onClick={createNewLottery}
+              >
+                Create New Lottery
+              </button>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </Layout>
   );
 };
 
