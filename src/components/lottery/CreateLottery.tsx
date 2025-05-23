@@ -8,7 +8,7 @@ import Layout from '../common/Layout';
 const CreateLottery: React.FC = () => {
   const [lotteryName, setLotteryName] = useState('');
   const [teamCount, setTeamCount] = useState(14);
-  const [verifierCount, setVerifierCount] = useState(2);
+  const [verifierCount, setVerifierCount] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
@@ -99,13 +99,15 @@ const CreateLottery: React.FC = () => {
               value={verifierCount}
               onChange={(e) => setVerifierCount(parseInt(e.target.value))}
             >
+              <option value="0">0 - No verification required</option>
               {Array.from({ length: 14 }, (_, i) => i + 1).map(num => (
                 <option key={num} value={num}>{num}</option>
               ))}
             </select>
             <p className="text-sm text-gray-600 mt-1">
               Number of people who must verify the lottery before it can begin. 
-              You (the admin) count as one verifier.
+              You (the admin) count as one verifier if you select 1 or more.
+              Select 0 to skip verification entirely.
             </p>
           </div>
           

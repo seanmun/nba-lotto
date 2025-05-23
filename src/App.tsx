@@ -12,6 +12,8 @@ import LotterySetup from './components/lottery/LotterySetup';
 import LotteryVerification from './components/lottery/LotteryVerification';
 import LotteryDrawing from './components/lottery/LotteryDrawing';
 import LotteryReveal from './components/lottery/LotteryReveal';
+import DataMigration from './components/admin/DataMigration';
+
 import './index.css';
 
 // Protected route component
@@ -41,6 +43,8 @@ const App: React.FC = () => {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/email-handler" element={<EmailHandler />} />
+            <Route path="/data-migration" element={<DataMigration />} />
+
             
             {/* Protected routes */}
             <Route path="/dashboard" element={

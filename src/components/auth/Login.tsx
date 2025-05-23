@@ -1,5 +1,5 @@
-// src/components/auth/Login.tsx
-import React, { useState } from 'react';
+// src/components/auth/Login.tsx - Modified with Redirect Support
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Layout from '../common/Layout';
@@ -10,8 +10,17 @@ const Login: React.FC = () => {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [redirectPath, setRedirectPath] = useState('');
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  // Check for redirect path in localStorage
+  useEffect(() => {
+    const savedPath = localStorage.getItem('redirectAfterLogin');
+    if (savedPath) {
+      setRedirectPath(savedPath);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,6 +28,11 @@ const Login: React.FC = () => {
     try {
       setError('');
       setLoading(true);
+      
+      // If we have a redirect path, store it in localStorage
+      if (redirectPath) {
+        localStorage.setItem('redirectAfterLogin', redirectPath);
+      }
       
       const result = await login(email);
       setEmailSent(true);
@@ -38,6 +52,12 @@ const Login: React.FC = () => {
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
             {error}
+          </div>
+        )}
+        
+        {redirectPath && (
+          <div className="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded mb-4">
+            <p>Sign in to continue to the lottery verification.</p>
           </div>
         )}
         

@@ -1,4 +1,4 @@
-// src/context/AuthContext.tsx
+// src/context/AuthContext.tsx - Improved version of your existing code
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { 
   sendSignInLinkToEmail,
@@ -8,7 +8,7 @@ import {
   onAuthStateChanged,
   User as FirebaseUser
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import { User } from '../types';
 
@@ -46,6 +46,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const completeSignIn = async (email: string, url: string): Promise<FirebaseUser> => {
     try {
       const result = await signInWithEmailLink(auth, email, url);
+      
+      // IMPROVED: Handle user profile creation after successful sign-in
+      if (result.user) {
+        const displayName = window.localStorage.getItem('displayNameForSignIn');
+        const isRegistration = window.localStorage.getItem('isRegistration') === 'true';
+        
+        if (isRegistration && displayName) {
+          // This is a new registration, create profile with display name
+          await createUserProfile(result.user.uid, email, displayName);
+        } else {
+          // This is a login, just fetch existing profile or create basic one
+          await fetchUserProfile(result.user.uid);
+        }
+      }
+      
       return result.user;
     } catch (error) {
       console.error('Error completing sign in:', error);
@@ -57,7 +72,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const register = async (email: string, displayName: string): Promise<{ success: boolean, message: string }> => {
     try {
       const actionCodeSettings = {
-        url: window.location.origin + '/email-handler', // URL to redirect back to after email verification
+        url: window.location.origin + '/email-handler',
         handleCodeInApp: true
       };
       
@@ -82,7 +97,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (email: string): Promise<{ success: boolean, message: string }> => {
     try {
       const actionCodeSettings = {
-        url: window.location.origin + '/email-handler', // URL to redirect to after login
+        url: window.location.origin + '/email-handler',
         handleCodeInApp: true
       };
       
@@ -122,7 +137,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     
     try {
       const userRef = doc(db, 'users', currentUser.uid);
-      await updateDoc(userRef, data);
+      // IMPROVED: Add timestamp to updates
+      await updateDoc(userRef, {
+        ...data,
+        updatedAt: serverTimestamp()
+      });
       
       // Update local state
       if (userProfile) {
@@ -141,7 +160,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const docSnap = await getDoc(docRef);
       
       if (docSnap.exists()) {
-        setUserProfile(docSnap.data() as User);
+        const profileData = docSnap.data() as User;
+        console.log('Loaded user profile:', profileData); // DEBUG
+        setUserProfile(profileData);
       } else {
         console.log('No existing profile, creating new one');
         // Create a basic profile if none exists
@@ -149,9 +170,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const newProfile: User = {
             id: userId,
             email: currentUser.email,
-            displayName: currentUser.displayName || 'User'
+            displayName: currentUser.displayName || currentUser.email.split('@')[0] || 'User'
           };
-          await setDoc(docRef, newProfile);
+          
+          // IMPROVED: Add timestamps when creating profile
+          await setDoc(docRef, {
+            ...newProfile,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+          
+          console.log('Created new user profile:', newProfile); // DEBUG
           setUserProfile(newProfile);
         }
       }
@@ -177,8 +206,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           displayName: displayName
         };
         
-        await setDoc(userRef, userProfile);
+        // IMPROVED: Add timestamps when creating profile
+        await setDoc(userRef, {
+          ...userProfile,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        
+        console.log('Created user profile during registration:', userProfile); // DEBUG
         setUserProfile(userProfile);
+      } else {
+        // Profile exists, just load it
+        const existingProfile = docSnap.data() as User;
+        console.log('Found existing user profile:', existingProfile); // DEBUG
+        setUserProfile(existingProfile);
       }
     } catch (error) {
       console.error('Error creating user profile:', error);
@@ -188,6 +229,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Listen for auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      console.log('Auth state changed:', user ? `User ${user.email} (${user.uid})` : 'No user'); // DEBUG
       setCurrentUser(user);
       
       if (user) {

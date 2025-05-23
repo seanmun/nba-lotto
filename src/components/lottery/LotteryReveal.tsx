@@ -1,4 +1,4 @@
-// src/components/lottery/LotteryReveal.tsx
+// src/components/lottery/LotteryReveal.tsx - Fixed for proper draft order
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -11,6 +11,7 @@ const LotteryReveal: React.FC = () => {
   const [lottery, setLottery] = useState<LotterySession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
   
   // Reveal state
   const [revealing, setRevealing] = useState(false);
@@ -22,7 +23,7 @@ const LotteryReveal: React.FC = () => {
   
   useEffect(() => {
     const fetchLottery = async () => {
-      if (!lotteryId || !currentUser) return;
+      if (!lotteryId) return;
       
       try {
         const lotteryData = await getLotterySession(lotteryId);
@@ -32,17 +33,25 @@ const LotteryReveal: React.FC = () => {
           return;
         }
         
-        // If no draft order yet, redirect to drawing page
+        // If no draft order yet, show error
         if (!lotteryData.draftOrder || lotteryData.draftOrder.length === 0) {
           setError('Draft order has not been generated yet');
           return;
         }
         
+        console.log('Lottery data loaded:', lotteryData); // DEBUG
+        console.log('Draft order:', lotteryData.draftOrder); // DEBUG
+        
         setLottery(lotteryData);
         
-        // If completed, mark as such
-        if (lotteryData.status !== 'complete') {
-          await updateLotteryStatus(lotteryId, 'complete');
+        // Set admin status if user is authenticated
+        if (currentUser) {
+          setIsAdmin(lotteryData.adminId === currentUser.uid);
+          
+          // If admin and status not complete, mark as complete
+          if (lotteryData.adminId === currentUser.uid && lotteryData.status !== 'complete') {
+            await updateLotteryStatus(lotteryId, 'complete');
+          }
         }
       } catch (error: any) {
         setError(error.message || 'Failed to load lottery');
@@ -61,15 +70,22 @@ const LotteryReveal: React.FC = () => {
     setRevealing(true);
     setRevealedPicks([]);
     
-    // Start from the last pick
+    // FIXED: Start from the last pick (highest number) and work down to 1
     const totalPicks = lottery.draftOrder.length;
+    console.log(`Starting reveal from pick ${totalPicks} down to 1`); // DEBUG
     revealNextPick(totalPicks);
   };
   
-  // Reveal the next pick in the sequence
+  // Reveal the next pick in the sequence (counting down from last to first)
   const revealNextPick = (pickNumber: number) => {
+    console.log(`Revealing pick #${pickNumber}`); // DEBUG
+    
     // Add this pick to revealed picks
-    setRevealedPicks(prev => [...prev, pickNumber]);
+    setRevealedPicks(prev => {
+      const newRevealed = [...prev, pickNumber];
+      console.log('Revealed picks so far:', newRevealed); // DEBUG
+      return newRevealed;
+    });
     
     if (pickNumber > 1) {
       // Schedule next reveal after 3 seconds
@@ -80,6 +96,7 @@ const LotteryReveal: React.FC = () => {
       // All picks revealed
       setTimeout(() => {
         setRevealing(false);
+        console.log('Reveal complete!'); // DEBUG
       }, 2000);
     }
   };
@@ -103,15 +120,15 @@ const LotteryReveal: React.FC = () => {
     });
     
     // Then create draft order CSV
-    let draftOrderCSV = "Pick,Team Name,Combination\n";
+    let draftOrderCSV = "\n\nDRAFT ORDER\nPick,Team Name,Combination\n";
     
     lottery.draftOrder.forEach(pick => {
       const comboString = pick.combination ? formatCombination(pick.combination) : 'N/A';
       draftOrderCSV += `${pick.pick},${pick.teamName},${comboString}\n`;
     });
     
-    // Return the combination CSV (draft order is included in the download)
-    return combinationsCSV;
+    // Return the combination CSV with draft order appended
+    return combinationsCSV + draftOrderCSV;
   };
   
   // Download CSV
@@ -130,13 +147,27 @@ const LotteryReveal: React.FC = () => {
     document.body.removeChild(link);
   };
   
-  // Create a new lottery
+  // Login handling
+  const handleLoginClick = () => {
+    localStorage.setItem('redirectAfterLogin', window.location.pathname);
+    navigate('/login');
+  };
+  
+  // Create a new lottery (only for authenticated users)
   const createNewLottery = () => {
+    if (!currentUser) {
+      handleLoginClick();
+      return;
+    }
     navigate('/lottery/create');
   };
   
-  // Go to dashboard
+  // Go to dashboard (only for authenticated users)
   const goToDashboard = () => {
+    if (!currentUser) {
+      handleLoginClick();
+      return;
+    }
     navigate('/dashboard');
   };
   
@@ -157,9 +188,9 @@ const LotteryReveal: React.FC = () => {
           </div>
           <button
             className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate('/')}
           >
-            Back to Dashboard
+            Go Home
           </button>
         </div>
       </Layout>
@@ -174,6 +205,9 @@ const LotteryReveal: React.FC = () => {
     );
   }
   
+  // FIXED: Sort draft order to ensure proper display (1, 2, 3, 4, 5...)
+  const sortedDraftOrder = [...lottery.draftOrder].sort((a, b) => a.pick - b.pick);
+  
   return (
     <Layout>
       <div className="max-w-4xl mx-auto my-4 p-4 bg-white rounded-lg shadow-md">
@@ -183,7 +217,7 @@ const LotteryReveal: React.FC = () => {
         {!revealing && revealedPicks.length === 0 && (
           <div className="mb-4 text-center">
             <p className="mb-2 text-sm">
-              Ready to reveal the final draft order! The reveal will start from pick #{lottery.draftOrder.length} and work up to the #1 pick.
+              Ready to reveal the final draft order! The reveal will start from pick #{sortedDraftOrder.length} and work down to pick #1.
             </p>
             <div className="flex flex-wrap gap-2 justify-center">
               <button
@@ -193,19 +227,21 @@ const LotteryReveal: React.FC = () => {
                 Start the Reveal
               </button>
               
-              <button
-                className="bg-green-600 text-white py-1 px-3 rounded flex items-center text-sm hover:bg-green-700 transition"
-                onClick={downloadCSV}
-              >
-                <Download size={14} className="mr-1" />
-                Download CSV
-              </button>
+              {currentUser && (
+                <button
+                  className="bg-green-600 text-white py-1 px-3 rounded flex items-center text-sm hover:bg-green-700 transition"
+                  onClick={downloadCSV}
+                >
+                  <Download size={14} className="mr-1" />
+                  Download CSV
+                </button>
+              )}
             </div>
           </div>
         )}
         
         <div className="space-y-1">
-          {lottery.draftOrder.map((pick) => {
+          {sortedDraftOrder.map((pick) => {
             const isRevealed = revealedPicks.includes(pick.pick);
             const isCurrentReveal = revealedPicks.length > 0 && 
                                    revealedPicks[revealedPicks.length - 1] === pick.pick;
@@ -246,29 +282,48 @@ const LotteryReveal: React.FC = () => {
         
         {(!revealing && revealedPicks.length > 0) && (
           <div className="mt-4 flex flex-col gap-2">
-            <button
-              className="w-full bg-blue-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-blue-700 transition"
-              onClick={downloadCSV}
-            >
-              <Download size={14} className="inline-block mr-1" />
-              Download Results CSV
-            </button>
+            {currentUser && (
+              <button
+                className="w-full bg-blue-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-blue-700 transition"
+                onClick={downloadCSV}
+              >
+                <Download size={14} className="inline-block mr-1" />
+                Download Results CSV
+              </button>
+            )}
             
             <div className="flex gap-2">
-              <button
-                className="flex-1 bg-gray-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-gray-700 transition"
-                onClick={goToDashboard}
-              >
-                Back to Dashboard
-              </button>
-              
-              <button
-                className="flex-1 bg-green-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-green-700 transition"
-                onClick={createNewLottery}
-              >
-                Create New Lottery
-              </button>
+              {currentUser ? (
+                <>
+                  <button
+                    className="flex-1 bg-gray-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-gray-700 transition"
+                    onClick={goToDashboard}
+                  >
+                    Back to Dashboard
+                  </button>
+                  
+                  <button
+                    className="flex-1 bg-green-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-green-700 transition"
+                    onClick={createNewLottery}
+                  >
+                    Create New Lottery
+                  </button>
+                </>
+              ) : (
+                <button
+                  className="flex-1 bg-blue-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-blue-700 transition"
+                  onClick={handleLoginClick}
+                >
+                  Sign In
+                </button>
+              )}
             </div>
+          </div>
+        )}
+        
+        {!currentUser && (
+          <div className="mt-4 p-3 bg-blue-50 rounded text-center text-sm">
+            <p>Sign in to download results or create your own lottery</p>
           </div>
         )}
       </div>

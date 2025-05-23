@@ -1,4 +1,4 @@
-// src/components/auth/EmailHandler.tsx
+// src/components/auth/EmailHandler.tsx - Modified with Redirect Support
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -39,13 +39,21 @@ const EmailHandler: React.FC = () => {
           const isRegistration = window.localStorage.getItem('isRegistration') === 'true';
           const displayName = window.localStorage.getItem('displayNameForSignIn');
           
+          // Check for redirect path
+          const redirectPath = window.localStorage.getItem('redirectAfterLogin');
+          
           // Clean up localStorage
           window.localStorage.removeItem('emailForSignIn');
           window.localStorage.removeItem('displayNameForSignIn');
           window.localStorage.removeItem('isRegistration');
           
-          // Redirect based on registration status
-          navigate('/dashboard');
+          // Redirect based on saved path or default to dashboard
+          if (redirectPath) {
+            window.localStorage.removeItem('redirectAfterLogin');
+            navigate(redirectPath);
+          } else {
+            navigate('/dashboard');
+          }
         } else {
           // Not a sign-in link, redirect to login
           navigate('/login');
