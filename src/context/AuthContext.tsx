@@ -161,10 +161,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       if (docSnap.exists()) {
         const profileData = docSnap.data() as User;
-        console.log('Loaded user profile:', profileData); // DEBUG
         setUserProfile(profileData);
       } else {
-        console.log('No existing profile, creating new one');
         // Create a basic profile if none exists
         if (currentUser && currentUser.email) {
           const newProfile: User = {
@@ -179,8 +177,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
           });
-          
-          console.log('Created new user profile:', newProfile); // DEBUG
+
           setUserProfile(newProfile);
         }
       }
@@ -212,13 +209,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
-        
-        console.log('Created user profile during registration:', userProfile); // DEBUG
+
         setUserProfile(userProfile);
       } else {
         // Profile exists, just load it
         const existingProfile = docSnap.data() as User;
-        console.log('Found existing user profile:', existingProfile); // DEBUG
         setUserProfile(existingProfile);
       }
     } catch (error) {
@@ -229,7 +224,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Listen for auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      console.log('Auth state changed:', user ? `User ${user.email} (${user.uid})` : 'No user'); // DEBUG
       setCurrentUser(user);
       
       if (user) {

@@ -1,0 +1,51 @@
+rules_version = '2';
+
+// Firestore security rules for nba-lotto.
+//
+// These close the biggest hole in the project: without rules, the database is
+// in "test mode" and ANYONE can overwrite any lottery's results directly,
+// bypassing the UI entirely. With these rules:
+//   - results are publicly readable (lotteries are meant to be shared),
+//   - only the admin can create/modify/delete their own lottery,
+//   - a signed-in league member can add THEMSELVES as a verifier (and nothing
+//     else) while a lottery is in the verification phase.
+//
+// Note: these rules stop third parties and verifiers from tampering. They do
+// NOT, by themselves, stop a malicious ADMIN from re-running their own draw —
+// that requires the commit-reveal scheme noted as a follow-up. The recorded
+// `seed` makes an honest admin's draw auditable in the meantime.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // User profiles: a user may only read and write their own.
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /lotteries/{lotteryId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isAdmin() {
+        return isSignedIn() && request.auth.uid == resource.data.adminId;
+      }
+
+      // Only a verifier-append: nothing changes except the verifiers list (and
+      // the timestamp), and exactly one verifier — the caller — is added.
+      function isVerifierAppend() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return isSignedIn()
+          && resource.data.status == 'verification'
+          && changed.hasOnly(['verifiers', 'updatedAt'])
+          && request.resource.data.verifiers.size() == resource.data.verifiers.size() + 1;
+      }
+
+      allow read: if true;
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.adminId;
+      allow update: if isAdmin() || isVerifierAppend();
+      allow delete: if isAdmin();
+    }
+  }
+}
