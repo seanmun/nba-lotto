@@ -150,13 +150,12 @@ const Dashboard: React.FC = () => {
   return (
     <Layout>
       <div className="max-w-4xl mx-auto my-10 p-6 bg-white rounded-lg shadow-md">
-      <div className="flex justify-between items-center mb-6">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-6">
+        <div className="min-w-0">
           <h2 className="text-2xl font-bold">My Lotteries</h2>
-          <p className="text-sm text-gray-600 mt-1">Logged in as: {currentUser?.email}</p>
-          <p className="text-xs text-gray-500 mt-1">User ID: {currentUser?.uid}</p>
+          <p className="text-sm text-gray-600 mt-1 truncate">Logged in as: {currentUser?.email}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button
             className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded flex items-center"
             onClick={handleCreateLottery}
@@ -172,15 +171,7 @@ const Dashboard: React.FC = () => {
           </button>
         </div>
       </div>
-      
-      {/* DEBUG SECTION */}
-      <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded">
-        <h3 className="font-bold text-yellow-800 mb-2">DEBUG INFO</h3>
-        <p className="text-sm text-yellow-700">Admin Lotteries: {adminLotteries.length}</p>
-        <p className="text-sm text-yellow-700">Participating Lotteries: {participatingLotteries.length}</p>
-        <p className="text-sm text-yellow-700">Check browser console for detailed logs</p>
-      </div>
-      
+
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
           {error}
