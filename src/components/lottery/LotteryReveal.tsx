@@ -22,42 +22,61 @@ const LotteryReveal: React.FC = () => {
   const navigate = useNavigate();
   
   useEffect(() => {
+    let cancelled = false;
+    let attempts = 0;
+
     const fetchLottery = async () => {
       if (!lotteryId) return;
-      
+
       try {
         const lotteryData = await getLotterySession(lotteryId);
-        
+        if (cancelled) return;
+
         if (!lotteryData) {
           setError('Lottery not found');
+          setLoading(false);
           return;
         }
-        
-        // If no draft order yet, show error
+
+        // Right after the admin finishes the draw, the draft order can take a
+        // moment to be readable. Retry briefly instead of showing a permanent
+        // error. (Validators arrive later, so the draft order is already there
+        // on their first try — their path is unchanged.)
         if (!lotteryData.draftOrder || lotteryData.draftOrder.length === 0) {
+          if (attempts < 8) {
+            attempts++;
+            setTimeout(fetchLottery, 1500);
+            return;
+          }
           setError('Draft order has not been generated yet');
+          setLoading(false);
           return;
         }
-        
+
+        setError('');
         setLottery(lotteryData);
-        
+
         // Set admin status if user is authenticated
         if (currentUser) {
           setIsAdmin(lotteryData.adminId === currentUser.uid);
-          
+
           // If admin and status not complete, mark as complete
           if (lotteryData.adminId === currentUser.uid && lotteryData.status !== 'complete') {
             await updateLotteryStatus(lotteryId, 'complete');
           }
         }
+        setLoading(false);
       } catch (error: any) {
+        if (cancelled) return;
         setError(error.message || 'Failed to load lottery');
-      } finally {
         setLoading(false);
       }
     };
-    
+
     fetchLottery();
+    return () => {
+      cancelled = true;
+    };
   }, [lotteryId, currentUser]);
   
   // Start the dramatic reveal of the draft order
