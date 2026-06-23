@@ -7,6 +7,8 @@ import {
   getLotteryPickCount,
   computeDraw,
   mulberry32,
+  normalizeEmail,
+  emailMatchesTeam,
   TOTAL_COMBINATIONS,
 } from './lotteryMath';
 import { Team, LotteryCombination } from '../types';
@@ -159,6 +161,38 @@ describe('computeDraw', () => {
     const drawn = computeDraw(7, combos, getLotteryPickCount(3));
     expect(drawn).toHaveLength(2);
     expect(new Set(drawn.map((c) => c.teamId)).size).toBe(2);
+  });
+});
+
+describe('email matching', () => {
+  const team: Team = {
+    id: 't1',
+    name: 'Team 1',
+    email: 'Sean@Gmail.com',
+    emails: ['Sean@Gmail.com', '  CoOwner@Example.COM '],
+    rank: 1,
+    oddsPercentage: 14,
+    combinations: [],
+  };
+
+  it('normalizes case and whitespace', () => {
+    expect(normalizeEmail('  Sean@Gmail.com ')).toBe('sean@gmail.com');
+    expect(normalizeEmail(undefined)).toBe('');
+  });
+
+  it('matches a team owner regardless of case or spaces', () => {
+    expect(emailMatchesTeam(team, 'sean@gmail.com')).toBe(true);
+    expect(emailMatchesTeam(team, 'SEAN@GMAIL.COM')).toBe(true);
+    expect(emailMatchesTeam(team, ' sean@gmail.com ')).toBe(true);
+  });
+
+  it('matches a co-owner regardless of case or spaces', () => {
+    expect(emailMatchesTeam(team, 'coowner@example.com')).toBe(true);
+  });
+
+  it('does not match a different email or an empty one', () => {
+    expect(emailMatchesTeam(team, 'someone@else.com')).toBe(false);
+    expect(emailMatchesTeam(team, '')).toBe(false);
   });
 });
 

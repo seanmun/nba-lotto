@@ -17,6 +17,23 @@ export const TOTAL_COMBINATIONS = 1000; // NBA uses 1000 of the 1001 possible
 // Official NBA lottery odds (percentages) for the 14 lottery teams.
 const NBA_ODDS = [14.0, 14.0, 14.0, 12.5, 10.5, 9.0, 7.5, 6.0, 4.5, 3.0, 2.0, 1.5, 1.0, 0.5];
 
+/** Canonical form for comparing emails — trims and lowercases. */
+export const normalizeEmail = (email: string | undefined | null): string =>
+  (email || '').trim().toLowerCase();
+
+/**
+ * Does this email belong to the team? Compares case-insensitively against the
+ * primary email and any co-owner emails, so `Sean@Gmail.com` matches a sign-in
+ * as `sean@gmail.com`. The old exact `===` comparison silently failed on any
+ * case/whitespace difference, so members couldn't see their own lottery.
+ */
+export const emailMatchesTeam = (team: Team, email: string): boolean => {
+  const target = normalizeEmail(email);
+  if (!target) return false;
+  if (normalizeEmail(team.email) === target) return true;
+  return (team.emails || []).some((e) => normalizeEmail(e) === target);
+};
+
 /**
  * Number of picks decided by the lottery draw.
  *

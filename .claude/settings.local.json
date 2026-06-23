@@ -3,7 +3,17 @@
     "allow": [
       "Bash(npm:*)",
       "Bash(npx:*)",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "Bash(firebase:*)",
+      "Bash(vercel:*)",
+      "Bash(curl:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(grep:*)",
+      "Bash(echo:*)",
+      "Bash(for:*)",
+      "Bash(seq:*)",
+      "Bash(sleep:*)"
     ]
   }
 }

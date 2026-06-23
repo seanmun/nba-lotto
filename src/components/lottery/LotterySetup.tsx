@@ -39,7 +39,7 @@ const toEmailEntries = (emails: string[] | undefined, primary: string): EmailEnt
 };
 
 const cleanEmails = (entries: EmailEntry[]): string[] =>
-  entries.map((e) => e.value.trim()).filter((v) => v !== '');
+  entries.map((e) => e.value.trim().toLowerCase()).filter((v) => v !== '');
 
 // A single team card. Pulled into its own component so react-hook-form's nested
 // useFieldArray (the co-owner email list) has a stable place to live.

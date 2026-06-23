@@ -24,6 +24,7 @@ import {
   assignCombinationsToTeams,
   getLotteryPickCount,
   generateSeed,
+  emailMatchesTeam,
 } from './lotteryMath';
 
 // Enhanced type to include user's team information
@@ -172,14 +173,7 @@ export const getUserParticipatingLotteries = async (userId: string): Promise<Par
       const matchingTeams = [];
       if (userEmail && lottery.teams) {
         for (const team of lottery.teams) {
-          if (team.email === userEmail) {
-            matchingTeams.push({
-              id: team.id,
-              name: team.name,
-              rank: team.rank
-            });
-          }
-          else if (team.emails && team.emails.includes(userEmail)) {
+          if (emailMatchesTeam(team, userEmail)) {
             matchingTeams.push({
               id: team.id,
               name: team.name,
