@@ -13,6 +13,7 @@ import LotteryVerification from './components/lottery/LotteryVerification';
 import LotteryDrawing from './components/lottery/LotteryDrawing';
 import LotteryReveal from './components/lottery/LotteryReveal';
 import DataMigration from './components/admin/DataMigration';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 import './index.css';
 
@@ -33,6 +34,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 const App: React.FC = () => {
   return (
+    <ErrorBoundary>
     <AuthProvider>
       <Router>
         <div className="min-h-screen bg-gray-100">
@@ -83,6 +85,7 @@ const App: React.FC = () => {
         </div>
       </Router>
     </AuthProvider>
+    </ErrorBoundary>
   );
 };
 

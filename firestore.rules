@@ -32,14 +32,13 @@ service cloud.firestore {
         return isSignedIn() && request.auth.uid == resource.data.adminId;
       }
 
-      // Only a verifier-append: nothing changes except the verifiers list (and
-      // the timestamp), and exactly one verifier — the caller — is added.
+      // Verifier write: any signed-in user may change ONLY the verifiers list
+      // (and timestamp). Kept deliberately lenient so verification can never be
+      // blocked during a live lottery — result fields (teams, combinations,
+      // drawnCombinations, draftOrder, seed, status) remain admin-only.
       function isVerifierAppend() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
-        return isSignedIn()
-          && resource.data.status == 'verification'
-          && changed.hasOnly(['verifiers', 'updatedAt'])
-          && request.resource.data.verifiers.size() == resource.data.verifiers.size() + 1;
+        return isSignedIn() && changed.hasOnly(['verifiers', 'updatedAt']);
       }
 
       allow read: if true;
