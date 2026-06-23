@@ -28,8 +28,9 @@ const Footer: React.FC = () => {
         <div className="border-t border-gray-700 pt-4 mt-2">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="text-gray-400 text-sm text-center md:text-left mb-3 md:mb-0">
-              © 2025 TrustThePick<br />
+              © 2026 TrustThePick<br />
               Built and maintained by Sean Munley<br />
+              <span className="text-gray-500 text-xs">v0.0.2 · build 2026-06-23</span>
             </div>
             <div className="flex space-x-4">
               <a 
