@@ -263,12 +263,12 @@ const LotteryDrawing: React.FC = () => {
           )}
 
           {/* Ball animation — visible to all users */}
-          <div className="flex justify-center items-center h-40 bg-gray-100 rounded-lg mb-4">
-            <div className="flex space-x-4">
+          <div className="flex justify-center items-center h-40 bg-gray-100 rounded-lg mb-4 px-2">
+            <div className="flex space-x-2 sm:space-x-4">
               {displayBalls.map((ball, index) => (
                 <div
                   key={index}
-                  className="w-16 h-16 rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold animate-bounce"
+                  className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-blue-600 text-white flex items-center justify-center text-lg sm:text-xl font-bold animate-bounce"
                 >
                   {ball}
                 </div>
@@ -276,7 +276,7 @@ const LotteryDrawing: React.FC = () => {
               {Array.from({ length: Math.max(0, BALLS_PER_DRAW - displayBalls.length) }, (_, i) => (
                 <div
                   key={i}
-                  className={`w-16 h-16 rounded-full flex items-center justify-center ${
+                  className={`w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center ${
                     displayDrawing ? 'bg-yellow-300 animate-pulse' : 'bg-gray-300'
                   }`}
                 >
