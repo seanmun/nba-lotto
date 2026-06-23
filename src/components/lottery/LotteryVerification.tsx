@@ -2,11 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { 
-  getLotterySession, 
-  addVerifier, 
-  updateLotteryStatus, 
-  generateCombinations 
+import {
+  subscribeLotterySession,
+  addVerifier,
+  updateLotteryStatus,
+  generateCombinations
 } from '../../services/lotteryService';
 import { LotterySession, Verifier } from '../../types';
 import { User, Key, Lock, CheckCircle, Share } from 'lucide-react';
@@ -27,56 +27,38 @@ const LotteryVerification: React.FC = () => {
   const { currentUser, userProfile } = useAuth();
   const navigate = useNavigate();
   
-  // Poll for updates to keep verification status current
+  // Live updates via Firestore listener (replaces the old 5s polling).
   useEffect(() => {
-    const fetchLottery = async () => {
-      if (!lotteryId) return;
-      
-      try {
-        setLoading(true);
-        const lotteryData = await getLotterySession(lotteryId);
-        
+    if (!lotteryId) return;
+    setShareUrl(`${window.location.origin}/lottery/${lotteryId}/verification`);
+
+    const unsubscribe = subscribeLotterySession(
+      lotteryId,
+      (lotteryData) => {
+        setLoading(false);
         if (!lotteryData) {
           setError('Lottery not found');
           return;
         }
-        
         setLottery(lotteryData);
-        
-        // Only set these if user is authenticated
+
         if (currentUser) {
           setIsAdmin(lotteryData.adminId === currentUser.uid);
-          
-          // Check if current user has already verified
-          const hasVerified = lotteryData.verifiers.some(v => v.userId === currentUser.uid);
-          setAlreadyVerified(hasVerified);
-          
-          // If in drawing status, redirect to drawing page
+          setAlreadyVerified(
+            lotteryData.verifiers.some((v) => v.userId === currentUser.uid)
+          );
           if (lotteryData.status === 'drawing') {
             navigate(`/lottery/${lotteryId}/drawing`);
           }
         }
-        
-        // Generate the verification URL
-        setShareUrl(`${window.location.origin}/lottery/${lotteryId}/verification`);
-      } catch (error: any) {
-        setError(error.message || 'Failed to load lottery');
-      } finally {
+      },
+      (err) => {
         setLoading(false);
+        setError(err.message || 'Failed to load lottery');
       }
-    };
-    
-    fetchLottery();
-    
-    // Poll for updates every 5 seconds if user is authenticated
-    let interval: number | undefined;
-    if (currentUser) {
-      interval = window.setInterval(fetchLottery, 5000);
-    }
-    
-    return () => {
-      if (interval) clearInterval(interval);
-    };
+    );
+
+    return unsubscribe;
   }, [lotteryId, currentUser, navigate]);
   
   // Keep your existing verification handling function 

@@ -31,78 +31,24 @@ const Dashboard: React.FC = () => {
       
       try {
         setLoading(true);
-        
-        // DEBUG: Log user information
-        console.log('=== DEBUG USER INFO ===');
-        console.log('Current User UID:', currentUser.uid);
-        console.log('Current User Email:', currentUser.email);
-        console.log('Current User Object:', currentUser);
-        
-        // Fetch lotteries where user is admin
+
+        // Fetch lotteries where the user is admin
         try {
-          console.log('Fetching admin lotteries for UID:', currentUser.uid);
           const adminLotteryData = await getAdminLotterySessions(currentUser.uid);
-          console.log('Admin lotteries found:', adminLotteryData.length);
-          adminLotteryData.forEach((lottery, index) => {
-            console.log(`Admin Lottery ${index + 1}:`, {
-              id: lottery.id,
-              name: lottery.name,
-              adminId: lottery.adminId,
-              isCurrentUserAdmin: lottery.adminId === currentUser.uid
-            });
-          });
           setAdminLotteries(adminLotteryData);
         } catch (adminError) {
           console.error('Error fetching admin lotteries:', adminError);
           // Continue execution even if admin lotteries fail
         }
-        
-        // Fetch lotteries where user is participating
-        // FIXED: Now passing the user's email from Firebase Auth
+
+        // Fetch lotteries where the user is participating
         try {
-          const userEmail = currentUser.email || '';
-          console.log('Fetching participating lotteries for email:', userEmail);
-          console.log('User email details:', {
-            email: userEmail,
-            emailLength: userEmail.length,
-            emailTrimmed: userEmail.trim(),
-            emailLowerCase: userEmail.toLowerCase()
-          });
-          
           const participatingLotteryData = await getUserParticipatingLotteries(currentUser.uid);
-          console.log('Participating lotteries found:', participatingLotteryData.length);
-          
-          // Let's also manually check what emails are in the teams for debugging
-          console.log('=== MANUAL EMAIL CHECK ===');
-          // Get all lotteries to see what team emails exist
-          const allAdminLotteries = await getAdminLotterySessions(currentUser.uid);
-          allAdminLotteries.forEach((lottery, lotteryIndex) => {
-            console.log(`Lottery ${lotteryIndex + 1} (${lottery.name}) teams:`);
-            lottery.teams.forEach((team, teamIndex) => {
-              console.log(`  Team ${teamIndex + 1} (${team.name}):`);
-              console.log(`    Primary email: "${team.email}" (length: ${team.email?.length || 0})`);
-              console.log(`    Emails array: [${team.emails?.map(e => `"${e}"`).join(', ') || 'empty'}]`);
-              console.log(`    Email matches user: primary=${team.email === userEmail}, in array=${team.emails?.includes(userEmail)}`);
-            });
-          });
-          console.log('=== END MANUAL EMAIL CHECK ===');
-          
-          participatingLotteryData.forEach((lottery, index) => {
-            console.log(`Participating Lottery ${index + 1}:`, {
-              id: lottery.id,
-              name: lottery.name,
-              adminId: lottery.adminId,
-              isCurrentUserAdmin: lottery.adminId === currentUser.uid,
-              userTeams: lottery.userTeams
-            });
-          });
           setParticipatingLotteries(participatingLotteryData);
         } catch (participatingError) {
           console.error('Error fetching participating lotteries:', participatingError);
           // Continue execution even if participating lotteries fail
         }
-        
-        console.log('=== END DEBUG INFO ===');
       } catch (error: any) {
         setError(error.message || 'Failed to load lotteries');
       } finally {

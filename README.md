@@ -48,14 +48,23 @@ NBA Lottery odds (as of 2023) are distributed as follows:
 | 13th worst    | 1.0%             | 10                    |
 | 14th worst    | 0.5%             | 5                     |
 
-When using fewer than 14 teams, the system takes the appropriate subset of these percentages.
+When using fewer than 14 teams, the system **normalizes** the relevant subset so the odds still sum to 100% and all 1,000 combinations are assigned (using the largest-remainder method). The percentage shown for each team is exactly its share of the 1,000 combinations, so the displayed odds always match the real probability.
 
 ### Drawing Process
 
-1. Draw four balls randomly from the 14 balls to form a combination
-2. The team assigned to that combination gets the 1st pick
-3. Repeat for the 2nd, 3rd, and 4th picks (redrawing if a team already selected is drawn again)
-4. Remaining picks (5th onward) are assigned in reverse order of team ranking
+1. A random `seed` is recorded when combinations are generated
+2. Four balls are drawn from the 14 to form a combination, driven by a seeded PRNG
+3. The team assigned to that combination gets the 1st pick
+4. Repeat for the remaining lottery picks (redrawing if an already-selected team comes up)
+5. Remaining picks are assigned in reverse order of team ranking
+
+The number of picks decided by the draw is `min(4, teamCount - 1)` — the NBA draws 4, but a small league can never draw more distinct winners than it has teams, so the final pick is always the team left over.
+
+### Verifiable Results
+
+Because the entire draw is a deterministic function of the recorded `seed` plus the combination assignment, anyone can replay and verify it with `computeDraw(seed, combinations)` in `src/services/lotteryMath.ts`. The seed is included in the exported CSV.
+
+> **Trust note:** The seed makes an honest drawing auditable and prevents third parties or verifiers from tampering (see `firestore.rules`). It does **not**, on its own, stop a malicious admin from re-running their own draw. A full commit-reveal scheme (each verifier contributes a hash-committed seed before the draw) is the planned follow-up for fully trustless operation.
 
 ## Getting Started
 
@@ -73,5 +82,16 @@ The multi-verification system ensures that no single person can manipulate the l
 ## Technologies
 
 - React with TypeScript
-- Firebase Authentication and Firestore
+- Firebase Authentication and Firestore (real-time `onSnapshot` listeners)
+- react-hook-form for the team setup forms
 - Tailwind CSS for styling
+- Vitest for unit tests (`npm test`)
+
+## Firestore Security Rules
+
+Database access is governed by `firestore.rules`. **These must be deployed** —
+without them the database is open and results can be tampered with directly.
+
+```
+firebase deploy --only firestore:rules
+```

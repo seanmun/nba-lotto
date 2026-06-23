@@ -1,28 +1,30 @@
 // src/services/lotteryService.ts
-import { 
-  collection, 
-  doc, 
-  setDoc, 
-  getDoc, 
-  getDocs, 
-  updateDoc, 
-  query, 
-  where,
-  serverTimestamp
+import {
+  collection,
+  doc,
+  setDoc,
+  getDoc,
+  getDocs,
+  updateDoc,
+  onSnapshot,
+  query,
+  where
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import { 
-  LotterySession, 
-  Team, 
-  LotteryCombination, 
-  DraftPick, 
-  Verifier 
+import {
+  LotterySession,
+  Team,
+  LotteryCombination,
+  DraftPick,
+  Verifier
 } from '../types';
-
-// Constants for the lottery
-const TOTAL_BALLS = 14;
-const BALLS_PER_DRAW = 4;
-const TOTAL_COMBINATIONS = 1000; // NBA uses 1000 of 1001 possible combinations
+import {
+  allocateCombinationCounts,
+  generateAllCombinations,
+  assignCombinationsToTeams,
+  getLotteryPickCount,
+  generateSeed,
+} from './lotteryMath';
 
 // Enhanced type to include user's team information
 interface ParticipatingLottery extends LotterySession {
@@ -54,13 +56,14 @@ export const createLotterySession = async (
     }));
     
     assignOddsToTeams(teams);
-    
+
     const lotterySession: LotterySession = {
       id: lotteryRef.id,
       name,
       adminId,
       teamCount,
       requiredVerifierCount,
+      lotteryPickCount: getLotteryPickCount(teamCount),
       verifiers: [],
       status: 'setup',
       teams,
@@ -91,6 +94,24 @@ export const getLotterySession = async (id: string): Promise<LotterySession | nu
     console.error('Error getting lottery session:', error);
     throw error;
   }
+};
+
+// Subscribe to live updates for a single lottery (replaces polling).
+// Returns an unsubscribe function.
+export const subscribeLotterySession = (
+  id: string,
+  onChange: (lottery: LotterySession | null) => void,
+  onError?: (error: Error) => void
+): (() => void) => {
+  const docRef = doc(db, 'lotteries', id);
+  return onSnapshot(
+    docRef,
+    (snap) => onChange(snap.exists() ? (snap.data() as LotterySession) : null),
+    (error) => {
+      console.error('Error subscribing to lottery session:', error);
+      onError?.(error);
+    }
+  );
 };
 
 // Get all lottery sessions for an admin
@@ -309,50 +330,24 @@ export const generateCombinations = async (lotteryId: string): Promise<LotteryCo
     }
     
     const lottery = lotterySnap.data() as LotterySession;
-    const allCombos: LotteryCombination[] = [];
-    let comboId = 1;
-    
-    for (let a = 1; a <= TOTAL_BALLS - 3; a++) {
-      for (let b = a + 1; b <= TOTAL_BALLS - 2; b++) {
-        for (let c = b + 1; c <= TOTAL_BALLS - 1; c++) {
-          for (let d = c + 1; d <= TOTAL_BALLS; d++) {
-            if (!(a === 11 && b === 12 && c === 13 && d === 14)) {
-              if (comboId <= TOTAL_COMBINATIONS) {
-                allCombos.push({
-                  id: comboId,
-                  balls: [a, b, c, d],
-                  teamId: ''
-                });
-                comboId++;
-              }
-            }
-          }
-        }
-      }
-    }
-    
-    let combinationIndex = 0;
-    const updatedTeams = [...lottery.teams];
-    
-    updatedTeams.forEach(team => {
-      const combinationsToAssign = Math.round(team.oddsPercentage * TOTAL_COMBINATIONS / 100);
-      team.combinations = [];
-      
-      for (let i = 0; i < combinationsToAssign; i++) {
-        if (combinationIndex < allCombos.length) {
-          allCombos[combinationIndex].teamId = team.id;
-          team.combinations.push(allCombos[combinationIndex].id.toString());
-          combinationIndex++;
-        }
-      }
-    });
-    
+
+    // Build all 1000 combinations and assign every one to a team (no orphans).
+    const allCombos = generateAllCombinations();
+    const updatedTeams = lottery.teams.map((team) => ({ ...team }));
+    assignCombinationsToTeams(updatedTeams, allCombos);
+
+    // Record a seed now. The whole draw is a deterministic function of this
+    // seed + the combination assignment, so anyone can replay and verify it.
+    const seed = generateSeed();
+
     await updateDoc(lotteryRef, {
       combinations: allCombos,
       teams: updatedTeams,
+      seed,
+      lotteryPickCount: getLotteryPickCount(lottery.teams.length),
       updatedAt: Date.now()
     });
-    
+
     return allCombos;
   } catch (error) {
     console.error('Error generating combinations:', error);
@@ -401,39 +396,20 @@ export const generateDraftOrder = async (lotteryId: string): Promise<DraftPick[]
     const lottery = lotterySnap.data() as LotterySession;
     const drawnCombinations = lottery.drawnCombinations || [];
     const teams = lottery.teams;
-    
-    console.log('=== DRAFT ORDER DEBUG ===');
-    console.log('Total drawn combinations:', drawnCombinations.length);
-    console.log('Total teams:', teams.length);
-    
+    const pickCount = lottery.lotteryPickCount ?? getLotteryPickCount(teams.length);
+
     const draftOrder: DraftPick[] = [];
-    
-    // Only use combinations that have valid teams
-    const validCombinations = drawnCombinations.filter(combo => {
-      const team = teams.find(t => t.id === combo.teamId);
-      return team !== undefined;
-    });
-    
-    console.log('Valid combinations:');
-    validCombinations.forEach((combo, index) => {
-      const team = teams.find(t => t.id === combo.teamId);
-      console.log(`  ${index}: ${combo.balls.join('-')} -> ${team?.name}`);
-    });
-    
-    // Take the last 4 valid combinations
-    const lastFourValidCombos = validCombinations.slice(-4);
-    
-    console.log('Using last 4 valid combinations:');
-    lastFourValidCombos.forEach((combo, index) => {
-      const team = teams.find(t => t.id === combo.teamId);
-      console.log(`  Pick ${index + 1}: ${combo.balls.join('-')} -> ${team?.name}`);
-    });
-    
-    // Create picks 1-4 from these combinations
-    for (let i = 0; i < lastFourValidCombos.length; i++) {
-      const combo = lastFourValidCombos[i];
-      const team = teams.find(t => t.id === combo.teamId);
-      
+
+    // Only use combinations that map to a real team, and only as many as the
+    // lottery was supposed to draw.
+    const validCombinations = drawnCombinations.filter((combo) =>
+      teams.some((t) => t.id === combo.teamId)
+    );
+    const lotteryCombos = validCombinations.slice(-pickCount);
+
+    // Picks decided by the draw, in draw order.
+    lotteryCombos.forEach((combo, i) => {
+      const team = teams.find((t) => t.id === combo.teamId);
       if (team) {
         draftOrder.push({
           pick: i + 1,
@@ -441,18 +417,16 @@ export const generateDraftOrder = async (lotteryId: string): Promise<DraftPick[]
           teamName: team.name,
           combination: combo
         });
-        console.log(`Pick ${i + 1}: ${team.name}`);
       }
-    }
-    
-    // Find remaining teams
-    const lotteryTeamIds = lastFourValidCombos.map(combo => combo.teamId);
-    const remainingTeams = teams.filter(team => !lotteryTeamIds.includes(team.id));
-    
-    // Add remaining teams in rank order
-    remainingTeams.sort((a, b) => a.rank - b.rank);
-    
-    let pickNumber = lastFourValidCombos.length + 1;
+    });
+
+    // Remaining picks: teams not drawn, in rank order (worst record first).
+    const drawnTeamIds = lotteryCombos.map((combo) => combo.teamId);
+    const remainingTeams = teams
+      .filter((team) => !drawnTeamIds.includes(team.id))
+      .sort((a, b) => a.rank - b.rank);
+
+    let pickNumber = lotteryCombos.length + 1;
     for (const team of remainingTeams) {
       draftOrder.push({
         pick: pickNumber,
@@ -460,15 +434,9 @@ export const generateDraftOrder = async (lotteryId: string): Promise<DraftPick[]
         teamName: team.name,
         combination: null
       });
-      console.log(`Pick ${pickNumber}: ${team.name} (remaining)`);
       pickNumber++;
     }
-    
-    console.log('=== FINAL DRAFT ORDER ===');
-    draftOrder.forEach(pick => {
-      console.log(`Pick ${pick.pick}: ${pick.teamName}`);
-    });
-    
+
     await updateDoc(lotteryRef, {
       draftOrder,
       status: 'reveal',
@@ -482,18 +450,14 @@ export const generateDraftOrder = async (lotteryId: string): Promise<DraftPick[]
   }
 };
 
-// Get NBA odds distribution based on team count
-const getOddsDistribution = (count: number): number[] => {
-  const nbaOdds = [14.0, 14.0, 14.0, 12.5, 10.5, 9.0, 7.5, 6.0, 4.5, 3.0, 2.0, 1.5, 1.0, 0.5];
-  return nbaOdds.slice(0, count);
-};
-
-// Assign odds to teams based on their rank
+// Assign odds to teams based on their rank. The displayed percentage equals
+// each team's exact share of the 1000 combinations, so it is always truthful —
+// including for leagues with fewer than 14 teams (which are normalized).
 const assignOddsToTeams = (teams: Team[]): void => {
-  const oddsDistribution = getOddsDistribution(teams.length);
-  
+  const counts = allocateCombinationCounts(teams.length);
+
   teams.forEach((team, index) => {
-    team.oddsPercentage = oddsDistribution[index];
+    team.oddsPercentage = counts[index] / (1000 / 100);
   });
 };
 

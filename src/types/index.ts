@@ -54,6 +54,8 @@ export interface LotterySession {
   combinations?: LotteryCombination[];
   drawnCombinations?: LotteryCombination[];
   draftOrder?: DraftPick[];
+  seed?: number;                    // Records the draw seed so results are auditable
+  lotteryPickCount?: number;        // Number of picks decided by the draw
   isDrawing?: boolean;              // Track if drawing is in progress
   currentDrawingBalls?: number[];   // Current balls being drawn
   drawingStatusMessage?: string;    // Status message for all users

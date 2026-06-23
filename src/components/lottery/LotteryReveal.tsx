@@ -39,9 +39,6 @@ const LotteryReveal: React.FC = () => {
           return;
         }
         
-        console.log('Lottery data loaded:', lotteryData); // DEBUG
-        console.log('Draft order:', lotteryData.draftOrder); // DEBUG
-        
         setLottery(lotteryData);
         
         // Set admin status if user is authenticated
@@ -70,23 +67,15 @@ const LotteryReveal: React.FC = () => {
     setRevealing(true);
     setRevealedPicks([]);
     
-    // FIXED: Start from the last pick (highest number) and work down to 1
+    // Start from the last pick (highest number) and work down to 1.
     const totalPicks = lottery.draftOrder.length;
-    console.log(`Starting reveal from pick ${totalPicks} down to 1`); // DEBUG
     revealNextPick(totalPicks);
   };
-  
+
   // Reveal the next pick in the sequence (counting down from last to first)
   const revealNextPick = (pickNumber: number) => {
-    console.log(`Revealing pick #${pickNumber}`); // DEBUG
-    
-    // Add this pick to revealed picks
-    setRevealedPicks(prev => {
-      const newRevealed = [...prev, pickNumber];
-      console.log('Revealed picks so far:', newRevealed); // DEBUG
-      return newRevealed;
-    });
-    
+    setRevealedPicks(prev => [...prev, pickNumber]);
+
     if (pickNumber > 1) {
       // Schedule next reveal after 3 seconds
       setTimeout(() => {
@@ -96,7 +85,6 @@ const LotteryReveal: React.FC = () => {
       // All picks revealed
       setTimeout(() => {
         setRevealing(false);
-        console.log('Reveal complete!'); // DEBUG
       }, 2000);
     }
   };
