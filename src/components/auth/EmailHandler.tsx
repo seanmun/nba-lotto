@@ -1,5 +1,5 @@
 // src/components/auth/EmailHandler.tsx - Modified with Redirect Support
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { isSignInWithEmailLink } from 'firebase/auth';
@@ -8,66 +8,63 @@ import { auth } from '../../firebase/config';
 const EmailHandler: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [email, setEmail] = useState<string | null>(null);
   const { completeSignIn } = useAuth();
   const navigate = useNavigate();
 
+  // Run the sign-in exactly once. The auth state change mid-sign-in re-renders
+  // AuthProvider (new completeSignIn reference), so without this guard the
+  // effect would re-fire, find the link already consumed + the stored email
+  // cleared, and re-prompt for the email in a loop.
+  const processedRef = useRef(false);
+
   useEffect(() => {
+    if (processedRef.current) return;
+    processedRef.current = true;
+
     const handleEmailLink = async () => {
       try {
-        // Check if the current URL is a sign-in link
-        if (isSignInWithEmailLink(auth, window.location.href)) {
-          // Get the email from localStorage
-          let storedEmail = window.localStorage.getItem('emailForSignIn');
-          
-          if (!storedEmail) {
-            // If no email found, prompt user to enter their email again
-            const promptedEmail = window.prompt('Please provide your email for confirmation');
-            if (promptedEmail) {
-              storedEmail = promptedEmail;
-            } else {
-              throw new Error('Email is required to complete sign-in');
-            }
-          }
-          
-          setEmail(storedEmail);
-          
-          // Complete sign-in process
-          const user = await completeSignIn(storedEmail, window.location.href);
-          
-          // Check if this is a registration (new user)
-          const isRegistration = window.localStorage.getItem('isRegistration') === 'true';
-          const displayName = window.localStorage.getItem('displayNameForSignIn');
-          
-          // Check for redirect path
-          const redirectPath = window.localStorage.getItem('redirectAfterLogin');
-          
-          // Clean up localStorage
-          window.localStorage.removeItem('emailForSignIn');
-          window.localStorage.removeItem('displayNameForSignIn');
-          window.localStorage.removeItem('isRegistration');
-          
-          // Redirect based on saved path or default to dashboard
-          if (redirectPath) {
-            window.localStorage.removeItem('redirectAfterLogin');
-            navigate(redirectPath);
-          } else {
-            navigate('/dashboard');
-          }
-        } else {
-          // Not a sign-in link, redirect to login
-          navigate('/login');
+        if (!isSignInWithEmailLink(auth, window.location.href)) {
+          navigate('/login', { replace: true });
+          return;
         }
-      } catch (error: any) {
-        console.error('Error handling email link:', error);
-        setError(error.message || 'Failed to sign in with email link');
+
+        // Email is normally in localStorage from when the link was requested.
+        // If the link is opened on a different device/browser it won't be, so
+        // we prompt once as a fallback.
+        let storedEmail = window.localStorage.getItem('emailForSignIn');
+        if (!storedEmail) {
+          const promptedEmail = window.prompt('Please confirm the email address this lottery invite was sent to');
+          if (!promptedEmail) {
+            throw new Error('Email is required to complete sign-in');
+          }
+          storedEmail = promptedEmail;
+        }
+
+        await completeSignIn(storedEmail, window.location.href);
+
+        const redirectPath = window.localStorage.getItem('redirectAfterLogin');
+
+        // Clean up so the consumed link can't re-trigger this flow.
+        window.localStorage.removeItem('emailForSignIn');
+        window.localStorage.removeItem('displayNameForSignIn');
+        window.localStorage.removeItem('isRegistration');
+        window.localStorage.removeItem('redirectAfterLogin');
+
+        // replace: true drops the sign-in link from history so a back/refresh
+        // doesn't reopen the (now invalid) link.
+        navigate(redirectPath || '/dashboard', { replace: true });
+      } catch (err: any) {
+        console.error('Error handling email link:', err);
+        setError(err.message || 'Failed to sign in with email link');
       } finally {
         setLoading(false);
       }
     };
-    
+
     handleEmailLink();
-  }, [navigate, completeSignIn]);
+    // Intentionally run once on mount; deps are accessed via stable closures.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (loading) {
     return (
