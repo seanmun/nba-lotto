@@ -1,8 +1,8 @@
 // src/components/lottery/LotteryReveal.tsx - Fixed for proper draft order
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { subscribeLotterySession, updateLotteryStatus } from '../../services/lotteryService';
+import { getLotterySession, updateLotteryStatus } from '../../services/lotteryService';
 import { LotterySession, LotteryCombination } from '../../types';
 import { Download } from 'lucide-react';
 import Layout from '../common/Layout';
@@ -11,7 +11,8 @@ const LotteryReveal: React.FC = () => {
   const [lottery, setLottery] = useState<LotterySession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
+  const [isAdmin, setIsAdmin] = useState(false);
+  
   // Reveal state
   const [revealing, setRevealing] = useState(false);
   const [revealedPicks, setRevealedPicks] = useState<number[]>([]);
@@ -20,44 +21,43 @@ const LotteryReveal: React.FC = () => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   
-  // Live subscription so the draft order appears the instant it's written —
-  // no more race where the admin (who navigates fastest) reads a beat too
-  // early and gets stuck on a "not generated yet" error.
-  const markedCompleteRef = useRef(false);
-
   useEffect(() => {
-    if (!lotteryId) return;
-
-    const unsubscribe = subscribeLotterySession(
-      lotteryId,
-      (lotteryData) => {
-        setLoading(false);
+    const fetchLottery = async () => {
+      if (!lotteryId) return;
+      
+      try {
+        const lotteryData = await getLotterySession(lotteryId);
+        
         if (!lotteryData) {
           setError('Lottery not found');
           return;
         }
-        setError('');
-        setLottery(lotteryData);
-
-        const hasDraftOrder = !!lotteryData.draftOrder && lotteryData.draftOrder.length > 0;
-        if (
-          currentUser &&
-          lotteryData.adminId === currentUser.uid &&
-          hasDraftOrder &&
-          lotteryData.status !== 'complete' &&
-          !markedCompleteRef.current
-        ) {
-          markedCompleteRef.current = true;
-          updateLotteryStatus(lotteryId, 'complete').catch(() => {});
+        
+        // If no draft order yet, show error
+        if (!lotteryData.draftOrder || lotteryData.draftOrder.length === 0) {
+          setError('Draft order has not been generated yet');
+          return;
         }
-      },
-      (err) => {
+        
+        setLottery(lotteryData);
+        
+        // Set admin status if user is authenticated
+        if (currentUser) {
+          setIsAdmin(lotteryData.adminId === currentUser.uid);
+          
+          // If admin and status not complete, mark as complete
+          if (lotteryData.adminId === currentUser.uid && lotteryData.status !== 'complete') {
+            await updateLotteryStatus(lotteryId, 'complete');
+          }
+        }
+      } catch (error: any) {
+        setError(error.message || 'Failed to load lottery');
+      } finally {
         setLoading(false);
-        setError(err.message || 'Failed to load lottery');
       }
-    );
-
-    return unsubscribe;
+    };
+    
+    fetchLottery();
   }, [lotteryId, currentUser]);
   
   // Start the dramatic reveal of the draft order
@@ -185,16 +185,10 @@ const LotteryReveal: React.FC = () => {
     );
   }
   
-  // Draft order not written yet (e.g. the admin just finished the draw and the
-  // result is propagating). Wait for the live update instead of erroring out.
-  if (!lottery || !lottery.draftOrder || lottery.draftOrder.length === 0) {
+  if (!lottery || !lottery.draftOrder) {
     return (
       <Layout>
-        <div className="max-w-lg mx-auto my-10 p-6 bg-white rounded-lg shadow-md text-center">
-          <h2 className="text-xl font-bold mb-2">{lottery?.name || 'Lottery'}</h2>
-          <p className="text-gray-600 mb-4">Finalizing the draft order…</p>
-          <div className="w-12 h-12 border-t-4 border-b-4 border-blue-500 rounded-full animate-spin mx-auto"></div>
-        </div>
+        <div>No lottery data available</div>
       </Layout>
     );
   }
